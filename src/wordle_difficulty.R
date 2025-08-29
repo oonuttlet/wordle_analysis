@@ -34,13 +34,18 @@ wordle_df_split <- wordle_df |>
   group_by(grp) |>
   group_split()
 
-aa <- lapply(wordle_df_split, \(x) ngramr::ngram(x$Word, year_start = 2020, year_end = 2022, smoothing = 0))
+aa <- lapply(wordle_df_split, \(x) ngramr::ngram(x$Word, year_start = 2020, year_end = 2022, smoothing = 0, case_ins = TRUE))
 bb <- data.table::rbindlist(aa) |> as.data.frame() |>
-  group_by(Phrase) |>
-  summarize(avg_freq = mean(Frequency)) |>
-  left_join(wordle_df, by = join_by("Phrase" == "Word"))
+  mutate(upper_phrase = toupper(Phrase)) |>
+  group_by(upper_phrase) |>
+  summarize(sum_freq = sum(Frequency)) |>
+  left_join(wordle_df, by = join_by("upper_phrase" == "Word"))
 
-ggplot(bb, aes(x = Date, y = avg_freq)) +
+cc <- bb |> 
+  group_by(Date, upper_phrase) |>
+  summarize(avg_freq = mean(sum_freq, na.rm = TRUE))
+
+ggplot(cc, aes(x = Date, y = avg_freq)) +
   geom_point(alpha = 0.5, color = "grey40") + # Make points semi-transparent
   # Use scale_y_log10 for better distribution, as you discovered
   scale_y_log10(labels = scales::label_percent()) + 
@@ -50,7 +55,8 @@ ggplot(bb, aes(x = Date, y = avg_freq)) +
        y = "Frequency (Log Scale)") +
   theme_minimal()
 
-df_rolling <- bb |>
+df_rolling <- cc |>
+  ungroup() |>
   arrange(Date) |>
   mutate(
     # Calculate a 30-day rolling average. k=30
@@ -126,3 +132,5 @@ ggplot(df_rolling, aes(x = Date, y = value, color = name, group = name, alpha = 
   scale_y_continuous(labels = scales::percent) +
   theme_minimal() +
   theme(legend.position = "bottom") # Move legend to the bottom
+
+

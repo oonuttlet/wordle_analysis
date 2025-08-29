@@ -36,7 +36,7 @@ wordle_df_split <- wordle_df |>
   group_by(grp) |>
   group_split()
 
-aa <- lapply(wordle_df_split, \(x) ngramr::ngram(x$Word, year_start = 1920, year_end = 2022, smoothing = 3))
+aa <- lapply(wordle_df_split, \(x) ngramr::ngram(x$Word, year_start = 1920, year_end = 2022, smoothing = 3, case_ins = TRUE))
 bb <- data.table::rbindlist(aa) |> as.data.frame() |>
   filter(Year >= 1920) |>
   group_by(Phrase) |>
@@ -51,16 +51,18 @@ bb <- data.table::rbindlist(aa) |> as.data.frame() |>
 
 
 cc <- bb |>
-  group_by(Phrase, generation) |>
-  summarize(avg_freq = mean(Frequency),
+  mutate(upper_phrase = toupper(Phrase)) |>
+  group_by(upper_phrase, generation) |>
+  summarize(sum_freq = sum(Frequency),
+            avg_freq = mean(sum_freq),
             max_freq = max(Frequency),
             max_yr = Year[which.max(Frequency)],
             diff_freq = max_freq - avg_freq) |>
-  left_join(wordle_df, by = join_by("Phrase" == "Word")) |>
+  left_join(wordle_df, by = join_by("upper_phrase" == "Word")) |>
   arrange(Date)
 
-dd <- bb |> left_join(wordle_df, by = join_by("Phrase" == "Word")) |>
-  arrange(Date) |> group_by(Date) |> summarize(avg_freq = mean(Frequency))
+dd <- cc |>
+  arrange(Date) |> group_by(generation, Date) |> summarize(avg_freq = mean(sum_freq))
 
 rolling_cc <- cc |>
   arrange(generation, Date) |>
